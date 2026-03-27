@@ -326,11 +326,24 @@ async function generate() {
     // 토큰 분리
     const prodToks = productName.split(/\s+/).filter(Boolean);
     const mainToks = (mainKeyword || '').split(/[\s,]+/).filter(Boolean);
-    const prodSet  = new Set(prodToks.map(t => t.toLowerCase()));
-    const newMain  = mainToks.filter(t => !prodSet.has(t.toLowerCase()));
+    const prodNorm = productName.toLowerCase().replace(/\s/g, '');
+
+    // 메인키워드: 상품명에 이미 포함된 단어/유사어 제외
+    // (정확히 같은 단어만 제외 - 유사어는 AI가 이미 처리)
+    const prodSet = new Set(prodToks.map(t => t.toLowerCase()));
+    const newMain = mainToks.filter(t => {
+      const tn = t.toLowerCase();
+      // 상품명 토큰과 정확히 같으면 제외
+      if (prodSet.has(tn)) return false;
+      // 상품명 전체에 포함되면 제외 (예: 돌소파가 돌쇼파 안에 없지만 의미유사 - AI가 처리)
+      return true;
+    });
+
+    // AI 키워드: 상품명에 이미 있는 단어 한번 더 필터
+    const cleanAiWords = aiWords.filter(w => !prodSet.has(w.toLowerCase()));
 
     // 완성 상품명
-    const full = [productName, ...newMain, ...aiWords].join(' ');
+    const full = [productName, ...newMain, ...cleanAiWords].join(' ');
     document.getElementById('resultText').textContent = full;
     document.getElementById('resultMeta').textContent =
       `총 ${full.length}자  ·  원본 ${productName.length}자 + 추가 ${full.length - productName.length}자`;
@@ -340,14 +353,14 @@ async function generate() {
     tagRow.innerHTML = '';
     prodToks.forEach(t => addTag(tagRow, t, 'tag-orig'));
     newMain.forEach(t  => addTag(tagRow, t, 'tag-main'));
-    aiWords.forEach(t  => addTag(tagRow, t, 'tag-ai'));
+    cleanAiWords.forEach(t  => addTag(tagRow, t, 'tag-ai'));
 
     // ACQ
     document.getElementById('acqText').textContent = acq.join(', ');
     document.getElementById('acqCnt').textContent = `${acq.length}개`;
 
     document.getElementById('resultWrap').style.display = 'block';
-    setSt(2, `<span class="ok">✅ 키워드 ${aiWords.length}개 추출 완료${collectedCategory ? ' · ' + collectedCategory + ' 기준' : ''}</span>`);
+    setSt(2, `<span class="ok">✅ 키워드 ${cleanAiWords.length}개 추출 완료${collectedCategory ? ' · ' + collectedCategory + ' 기준' : ''}</span>`);
 
   } catch (e) {
     showErr(2, '분석 오류: ' + e.message);
