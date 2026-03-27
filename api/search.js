@@ -17,8 +17,7 @@ export default async function handler(req, res) {
   // ── 네이버 쇼핑 ──
   if (naverClientId && naverClientSecret) {
     try {
-      const naverTitles = [];
-      let naverCategory = null;
+      const allItems = [];
       const pageSize = 100;
 
       for (let page = 1; page <= Math.min(pages, 10); page++) {
@@ -33,28 +32,48 @@ export default async function handler(req, res) {
         if (!r.ok) break;
         const data = await r.json();
         if (!data.items || data.items.length === 0) break;
-
-        data.items.forEach(item => {
-          const title = item.title.replace(/<[^>]*>/g, '').trim();
-          if (title) naverTitles.push(title);
-
-          // 첫 번째 상품의 카테고리 추출 (가장 정밀한 카테고리)
-          if (!naverCategory && item.category4) {
-            naverCategory = [item.category1, item.category2, item.category3, item.category4]
-              .filter(Boolean).join(' > ');
-          } else if (!naverCategory && item.category3) {
-            naverCategory = [item.category1, item.category2, item.category3]
-              .filter(Boolean).join(' > ');
-          } else if (!naverCategory && item.category1) {
-            naverCategory = [item.category1, item.category2]
-              .filter(Boolean).join(' > ');
-          }
-        });
+        allItems.push(...data.items);
       }
 
-      results.titles.push(...naverTitles);
-      results.sources.push(`네이버 ${naverTitles.length}개`);
-      if (naverCategory) results.category = naverCategory;
+      if (allItems.length === 0) {
+        results.sources.push('네이버 0개');
+      } else {
+        // 1. 상위 상품에서 기준 카테고리 결정 (가장 많이 나오는 카테고리)
+        const catFreq = {};
+        allItems.forEach(item => {
+          const cat = [item.category1, item.category2, item.category3]
+            .filter(Boolean).join('>');
+          if (cat) catFreq[cat] = (catFreq[cat] || 0) + 1;
+        });
+
+        // 최빈 카테고리 = 기준 카테고리
+        const baseCategory = Object.entries(catFreq)
+          .sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+        const [baseCat1, baseCat2, baseCat3] = baseCategory.split('>');
+
+        // 2. 기준 카테고리와 같은 상품만 필터링 (category1+2 일치)
+        const filtered = allItems.filter(item => {
+          if (!baseCat1) return true;
+          if (item.category1 !== baseCat1) return false;
+          if (baseCat2 && item.category2 !== baseCat2) return false;
+          return true;
+        });
+
+        // 3. 필터링된 상품명만 수집
+        const naverTitles = filtered.map(item =>
+          item.title.replace(/<[^>]*>/g, '').trim()
+        ).filter(Boolean);
+
+        // 4. 카테고리 문자열 (4단계까지)
+        const repItem = filtered[0] || allItems[0];
+        const naverCategory = [repItem.category1, repItem.category2, repItem.category3, repItem.category4]
+          .filter(Boolean).join(' > ');
+
+        results.titles.push(...naverTitles);
+        results.category = naverCategory;
+        results.sources.push(`네이버 ${naverTitles.length}개 (전체 ${allItems.length}개 중 카테고리 필터)`);
+      }
 
     } catch (e) {
       console.error('Naver error:', e.message);
@@ -65,13 +84,12 @@ export default async function handler(req, res) {
   if (elevenApiKey) {
     try {
       const elevenTitles = [];
-      const perPage = Math.min(pages * 20, 100); // 11번가는 페이지당 최대 20개 기준
+      const perPage = Math.min(pages * 20, 100);
       const url = `http://openapi.11st.co.kr/openapi/OpenApiService.tmall?key=${elevenApiKey}&apiCode=ProductSearch&keyword=${encodeURIComponent(keyword)}&pageSize=${perPage}&pageNum=1`;
 
       const r = await fetch(url);
       if (r.ok) {
         const xml = await r.text();
-        // XML에서 상품명 추출 (productName 태그)
         const matches = xml.match(/<productName>(.*?)<\/productName>/g) || [];
         matches.forEach(m => {
           const title = m.replace(/<\/?productName>/g, '').trim();
