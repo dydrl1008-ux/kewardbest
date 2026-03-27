@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키워드 빌더</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #080808;
+  --s1: #101010;
+  --s2: #181818;
+  --s3: #222;
+  --border: #282828;
+  --border2: #363636;
+  --text: #f0f0f0;
+  --text2: #888;
+  --text3: #444;
+  --green: #00e676;
+  --green2: rgba(0,230,118,.1);
+  --blue: #4da6ff;
+  --blue2: rgba(77,166,255,.1);
+  --yellow: #ffd600;
+  --yellow2: rgba(255,214,0,.1);
+  --red: #ff5252;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans KR', sans-serif;
+  --r: 10px;
+}
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px 100px; }
+.wrap { max-width: 680px; margin: 0 auto; }
+
+/* HEADER */
+.hdr { margin-bottom: 32px; }
+.logo { font-family: var(--mono); font-size: 10px; letter-spacing: .15em; color: var(--green); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s ease infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+h1 { font-size: 28px; font-weight: 900; margin-bottom: 6px; }
+h1 em { font-style: normal; color: var(--green); }
+.src-row { display: flex; gap: 6px; margin-top: 10px; }
+.src-tag { font-family: var(--mono); font-size: 10px; padding: 3px 10px; border-radius: 4px; border: 1px solid; }
+.src-naver { color: #03c75a; border-color: rgba(3,199,90,.3); background: rgba(3,199,90,.07); }
+.src-11st  { color: #ff0000; border-color: rgba(255,0,0,.25); background: rgba(255,0,0,.05); }
+
+/* CARD */
+.card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; margin-bottom: 14px; transition: opacity .2s, filter .2s; }
+.card.disabled { opacity: .4; pointer-events: none; filter: grayscale(.3); }
+.card-title { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--text3); text-transform: uppercase; margin-bottom: 18px; }
+
+/* FORM */
+label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+input[type=text] { width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--sans); font-size: 14px; padding: 11px 14px; outline: none; transition: border-color .15s; }
+input[type=text]:focus { border-color: var(--green); }
+input[type=text]::placeholder { color: var(--text3); }
+.field { margin-bottom: 14px; }
+
+/* PAGE PICKER */
+.page-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.pg-btn { font-family: var(--mono); font-size: 12px; padding: 5px 13px; border-radius: 5px; border: 1px solid var(--border2); background: var(--s2); color: var(--text2); cursor: pointer; transition: all .15s; }
+.pg-btn.active { background: var(--green2); border-color: var(--green); color: var(--green); }
+.pg-hint { font-size: 11px; color: var(--text3); margin-bottom: 14px; }
+
+/* SLIDER */
+.slider-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.slider-label { font-size: 13px; color: var(--text2); white-space: nowrap; font-weight: 500; min-width: 110px; }
+.slider-val { font-family: var(--mono); font-size: 13px; color: var(--green); min-width: 24px; text-align: center; }
+input[type=range] { flex: 1; -webkit-appearance: none; height: 3px; background: var(--border2); border-radius: 2px; outline: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--green); cursor: pointer; }
+
+/* BUTTONS */
+.btn { width: 100%; padding: 13px; border-radius: 7px; border: none; font-family: var(--sans); font-size: 15px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.btn-green { background: var(--green); color: #000; }
+.btn-green:hover { background: #33ff99; }
+.btn-green:disabled { background: var(--s3); color: var(--text3); cursor: not-allowed; }
+.btn-outline { background: transparent; color: var(--blue); border: 1px solid var(--blue); }
+.btn-outline:hover { background: var(--blue2); }
+.btn-outline:disabled { opacity: .35; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 5px; border: 1px solid var(--border2); background: var(--s3); color: var(--text2); cursor: pointer; transition: all .15s; font-family: var(--mono); }
+.btn-sm:hover { border-color: var(--green); color: var(--green); }
+.btn-sm.copied { border-color: var(--green); color: var(--green); }
+
+/* STATUS */
+.status { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 10px; min-height: 18px; }
+.blink { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: bl .7s ease infinite; }
+@keyframes bl { 0%,100%{opacity:1} 50%{opacity:0} }
+.ok { color: var(--green); }
+
+/* CATEGORY CHIP */
+.cat-chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--yellow); border: 1px solid rgba(255,214,0,.25); background: var(--yellow2); padding: 4px 12px; border-radius: 4px; margin-top: 8px; }
+.cat-chip::before { content: '📂'; font-size: 11px; }
+
+/* PROGRESS */
+.prog-wrap { margin-bottom: 12px; }
+.prog-bg { height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width .4s ease; }
+.prog-txt { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 5px; }
+
+/* ERR */
+.err { display: none; font-size: 13px; color: var(--red); background: rgba(255,82,82,.07); border: 1px solid rgba(255,82,82,.2); border-radius: 6px; padding: 10px 14px; margin-top: 10px; }
+
+/* RESULT */
+.result-box { background: var(--s2); border: 1px solid var(--border2); border-radius: 7px; padding: 16px 18px; margin-bottom: 12px; }
+.result-text { font-size: 15px; line-height: 1.8; word-break: break-all; color: var(--text); }
+.result-meta { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-top: 8px; }
+.copy-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.copy-label { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; }
+
+/* TAGS */
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; }
+.tag { font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid; }
+.tag-orig { background: var(--s3); border-color: var(--border2); color: var(--text2); }
+.tag-main { background: var(--blue2); border-color: rgba(77,166,255,.3); color: var(--blue); }
+.tag-ai   { background: var(--green2); border-color: rgba(0,230,118,.3); color: var(--green); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); }
+.dot { width: 7px; height: 7px; border-radius: 50%; }
+
+/* ACQ */
+.acq-text { font-family: var(--mono); font-size: 13px; color: var(--text2); line-height: 1.9; word-break: break-all; }
+
+/* SOURCE STATS */
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.stat { font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 4px; }
+.stat-n { color: #03c75a; background: rgba(3,199,90,.08); border: 1px solid rgba(3,199,90,.2); }
+.stat-e { color: #ff6666; background: rgba(255,0,0,.05); border: 1px solid rgba(255,0,0,.15); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="logo"><span class="logo-dot"></span>goat marketing</div>
+    <h1>상품명 <em>키워드</em> 빌더</h1>
+    <div class="src-row">
+      <span class="src-tag src-naver">네이버 쇼핑</span>
+      <span class="src-tag src-11st">11번가</span>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card" id="card1">
+    <div class="card-title">Step 1 — 경쟁사 수집</div>
+
+    <div class="field">
+      <label>메인 키워드</label>
+      <input type="text" id="mainKeyword" placeholder="예: 미역국, 캠핑의자, 무선선풍기">
+    </div>
+
+    <label>수집 페이지 수</label>
+    <div class="page-row" id="pagePicker">
+      <button class="pg-btn active" data-page="1">1p</button>
+      <button class="pg-btn" data-page="2">2p</button>
+      <button class="pg-btn" data-page="3">3p</button>
+      <button class="pg-btn" data-page="5">5p</button>
+      <button class="pg-btn" data-page="10">10p</button>
+    </div>
+    <div class="pg-hint">1페이지 = 네이버 100개 + 11번가 20개</div>
+
+    <div class="prog-wrap" id="prog1" style="display:none;">
+      <div class="prog-bg"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+      <div class="prog-txt" id="progTxt"></div>
+    </div>
+
+    <button class="btn btn-green" id="collectBtn" onclick="collect()">
+      🔍 경쟁사 수집 시작
+    </button>
+    <div class="status" id="st1"></div>
+    <div class="err" id="err1"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card disabled" id="card2">
+    <div class="card-title">Step 2 — 상품명 & 키워드 생성</div>
+
+    <div class="field">
+      <label>내 상품명</label>
+      <input type="text" id="productName" placeholder="예: 더살림 국산 미역국 간편식 레토르트">
+    </div>
+
+    <div class="slider-row">
+      <span class="slider-label">추가 키워드 수</span>
+      <input type="range" id="kwSlider" min="1" max="15" value="5"
+             oninput="document.getElementById('kwVal').textContent=this.value">
+      <span class="slider-val" id="kwVal">5</span>
+    </div>
+
+    <button class="btn btn-outline" id="genBtn" onclick="generate()" disabled>
+      ⚡ 키워드 분석 & 생성
+    </button>
+    <div class="status" id="st2"></div>
+    <div class="err" id="err2"></div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="resultWrap" style="display:none;">
+
+    <!-- 완성 상품명 -->
+    <div class="card">
+      <div class="copy-row">
+        <span class="copy-label">완성 상품명</span>
+        <button class="btn-sm" id="copyRes" onclick="cp('resultText','copyRes')">복사</button>
+      </div>
+      <div class="result-box">
+        <div class="result-text" id="resultText"></div>
+        <div class="result-meta" id="resultMeta"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">키워드 구성</div>
+      <div class="tag-row" id="tagRow"></div>
+      <div class="legend">
+        <span class="legend-item"><span class="dot" style="background:var(--s3);border:1px solid var(--border2)"></span>원본</span>
+        <span class="legend-item"><span class="dot" style="background:var(--blue)"></span>메인키워드</span>
+        <span class="legend-item"><span class="dot" style="background:var(--green)"></span>AI 추출</span>
+      </div>
+    </div>
+
+    <!-- ACQ -->
+    <div class="card">
+      <div class="copy-row">
+        <span class="copy-label">사전 탐색 키워드 ACQ <span style="color:var(--green)" id="acqCnt"></span></span>
+        <button class="btn-sm" id="copyAcq" onclick="cp('acqText','copyAcq')">복사</button>
+      </div>
+      <div class="result-box">
+        <div class="acq-text" id="acqText"></div>
+      </div>
+    </div>
+
+    <button class="btn btn-green" onclick="reset()">🔄 처음부터 다시</button>
+  </div>
+
+</div>
+<script>
+let pages = 1;
+let collected = [];
+let collectedCategory = null;
+let collectedSources = [];
+
+// 페이지 피커
+document.querySelectorAll('.pg-btn').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.pg-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    pages = +b.dataset.page;
+  };
+});
+
+// ── 수집 ──
+async function collect() {
+  const kw = document.getElementById('mainKeyword').value.trim();
+  if (!kw) return showErr(1, '메인 키워드를 입력해주세요.');
+  hideErr(1);
+
+  setBtn('collectBtn', true, '⏳ 수집 중...');
+  setSt(1, '');
+  showProg(true, 20, `네이버 + 11번가 ${pages}페이지 수집 중...`);
+
+  try {
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword: kw, pages }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || '수집 실패');
+    const data = await r.json();
+
+    collected = data.titles || [];
+    collectedCategory = data.category || null;
+    collectedSources  = data.sources  || [];
+
+    showProg(true, 100, `수집 완료: 총 ${collected.length}개`);
+
+    // 상태 표시
+    const srcStr = collectedSources.join(' · ');
+    let stHtml = `<span class="ok">✅ ${collected.length}개 수집 완료</span>`;
+    if (collectedCategory) {
+      stHtml += `<div class="cat-chip">${collectedCategory}</div>`;
+    }
+    document.getElementById('st1').innerHTML = stHtml;
+
+    // Step2 활성화
+    document.getElementById('card2').classList.remove('disabled');
+    document.getElementById('genBtn').disabled = false;
+
+  } catch (e) {
+    showErr(1, '수집 오류: ' + e.message);
+    showProg(false);
+  } finally {
+    setBtn('collectBtn', false, '🔍 경쟁사 수집 시작');
+  }
+}
+
+// ── 생성 ──
+async function generate() {
+  const productName = document.getElementById('productName').value.trim();
+  const mainKeyword = document.getElementById('mainKeyword').value.trim();
+  const kwCount     = +document.getElementById('kwSlider').value;
+
+  if (!productName) return showErr(2, '상품명을 입력해주세요.');
+  if (!collected.length) return showErr(2, '먼저 경쟁사를 수집해주세요.');
+  hideErr(2);
+
+  setBtn('genBtn', true, '⏳ AI 분석 중...');
+  setSt(2, 'Claude AI가 카테고리 기반으로 키워드를 분석합니다...');
+  document.getElementById('resultWrap').style.display = 'none';
+
+  try {
+    const r = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productName,
+        mainKeyword,
+        titles: collected,
+        category: collectedCategory,
+        kwCount,
+        acqCount: 30,
+      }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || '분석 실패');
+    const data = await r.json();
+
+    const aiWords = data.keywords || [];
+    const acq     = data.acq || [];
+
+    // 토큰 분리
+    const prodToks = productName.split(/\s+/).filter(Boolean);
+    const mainToks = (mainKeyword || '').split(/[\s,]+/).filter(Boolean);
+    const prodSet  = new Set(prodToks.map(t => t.toLowerCase()));
+    const newMain  = mainToks.filter(t => !prodSet.has(t.toLowerCase()));
+
+    // 완성 상품명
+    const full = [productName, ...newMain, ...aiWords].join(' ');
+    document.getElementById('resultText').textContent = full;
+    document.getElementById('resultMeta').textContent =
+      `총 ${full.length}자  ·  원본 ${productName.length}자 + 추가 ${full.length - productName.length}자`;
+
+    // 태그
+    const tagRow = document.getElementById('tagRow');
+    tagRow.innerHTML = '';
+    prodToks.forEach(t => addTag(tagRow, t, 'tag-orig'));
+    newMain.forEach(t  => addTag(tagRow, t, 'tag-main'));
+    aiWords.forEach(t  => addTag(tagRow, t, 'tag-ai'));
+
+    // ACQ
+    document.getElementById('acqText').textContent = acq.join(', ');
+    document.getElementById('acqCnt').textContent = `${acq.length}개`;
+
+    document.getElementById('resultWrap').style.display = 'block';
+    setSt(2, `<span class="ok">✅ 키워드 ${aiWords.length}개 추출 완료${collectedCategory ? ' · ' + collectedCategory + ' 기준' : ''}</span>`);
+
+  } catch (e) {
+    showErr(2, '분석 오류: ' + e.message);
+    setSt(2, '');
+  } finally {
+    setBtn('genBtn', false, '⚡ 키워드 분석 & 생성');
+  }
+}
+
+// ── 복사 ──
+function cp(textId, btnId) {
+  const text = document.getElementById(textId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(btnId);
+    const orig = btn.textContent;
+    btn.textContent = '복사됨 ✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+// ── 리셋 ──
+function reset() {
+  collected = []; collectedCategory = null; collectedSources = [];
+  document.getElementById('mainKeyword').value = '';
+  document.getElementById('productName').value = '';
+  document.getElementById('resultWrap').style.display = 'none';
+  document.getElementById('card2').classList.add('disabled');
+  document.getElementById('genBtn').disabled = true;
+  document.getElementById('st1').innerHTML = '';
+  document.getElementById('st2').innerHTML = '';
+  showProg(false);
+  hideErr(1); hideErr(2);
+  document.querySelectorAll('.pg-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-page="1"]').classList.add('active');
+  pages = 1;
+}
+
+// ── 유틸 ──
+function addTag(row, text, cls) {
+  const t = document.createElement('span');
+  t.className = 'tag ' + cls;
+  t.textContent = text;
+  row.appendChild(t);
+}
+function setBtn(id, disabled, label) {
+  const b = document.getElementById(id);
+  b.disabled = disabled;
+  b.textContent = label;
+}
+function setSt(n, html) {
+  const el = document.getElementById('st' + n);
+  if (!html) { el.innerHTML = ''; return; }
+  if (html.startsWith('<')) { el.innerHTML = html; return; }
+  el.innerHTML = `<span class="blink"></span><span>${html}</span>`;
+}
+function showProg(show, pct = 0, txt = '') {
+  document.getElementById('prog1').style.display = show ? 'block' : 'none';
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progTxt').textContent = txt;
+}
+function showErr(n, msg) {
+  const e = document.getElementById('err' + n);
+  e.textContent = msg; e.style.display = 'block';
+}
+function hideErr(n) {
+  document.getElementById('err' + n).style.display = 'none';
+}
+</script>
+</body>
+</html>
