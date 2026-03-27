@@ -14,112 +14,106 @@ export default async function handler(req, res) {
   const mainKw      = mainKeyword || '';
   const categoryStr = category || '미확인';
 
-  // ── 유틸: 한글 자모 분해 (유사어 감지용) ──
-  const decomposeHangul = (str) => {
-    const CHOSUNGS = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-    let result = '';
-    for (const ch of str) {
-      const code = ch.charCodeAt(0) - 0xAC00;
-      if (code >= 0 && code <= 11171) {
-        result += CHOSUNGS[Math.floor(code / 588)];
-      } else {
-        result += ch;
-      }
-    }
-    return result;
-  };
-
-  // ── 초성 기반 유사도 체크 ──
-  const isSimilar = (a, b) => {
-    const na = a.replace(/\s/g, '').toLowerCase();
-    const nb = b.replace(/\s/g, '').toLowerCase();
-    if (na === nb) return true;
-    // 한쪽이 다른 쪽을 포함
-    if (na.includes(nb) || nb.includes(na)) return true;
-    // 초성 비교
-    const ca = decomposeHangul(na);
-    const cb = decomposeHangul(nb);
-    if (ca === cb) return true;
-    return false;
-  };
-
-  // ── 상품명 토큰 추출 ──
+  // ── 토큰화 (숫자+한글 조합 유지) ──
   const tokenize = (str) =>
-    (str || '').replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+    (str || '').split(/\s+/).map(w => w.replace(/[^\uAC00-\uD7A3a-zA-Z0-9]/g, '')).filter(w => w.length >= 2);
 
   const productTokens = tokenize(productName);
   const mainTokens    = tokenize(mainKw);
   const allTokens     = [...new Set([...productTokens, ...mainTokens])];
 
-  // ── 블랙리스트 ──
+  // ── 숫자 규격 계열 감지 ──
+  // 상품명에 N인용/N인/Nx이 있으면 같은 계열 전부 블랙리스트
+  const UNIT_PATTERNS = [
+    /^\d+인용$/, /^\d+인$/, /^\d+단$/, /^\d+층$/,
+    /^\d+단계$/, /^\d+cm$/, /^\d+mm$/, /^\d+kg$/,
+  ];
+  const hasUnitWord = (tok) => UNIT_PATTERNS.some(p => p.test(tok));
+  const productHasUnit = productTokens.some(hasUnitWord);
+
+  // ── 브랜드명 패턴 감지 ──
+  const isBrand = (word) => {
+    if (/^[A-Za-z]+\d+$/.test(word)) return true;  // ABC123
+    if (/^\d+[A-Za-z]+$/.test(word)) return true;  // 123ABC
+    // 상품명 첫 번째 토큰 = 브랜드일 가능성 높음
+    if (productTokens[0] && word === productTokens[0]) return true;
+    return false;
+  };
+
+  // ── 구매의도 없는 단어 블랙리스트 ──
   const BLACKLIST = new Set([
     '추천','후기','리뷰','비교','순위','인기','베스트','최저가','할인','특가',
     '이벤트','쿠폰','정품','공식','신상','한정','품절','무료','선물','구매',
     '배송','당일','익일','정가','판매','브랜드','국내','해외','수입','정식',
   ]);
 
-  // ── 브랜드명 패턴 감지 (숫자 포함 고유명사) ──
-  const isBrand = (word) => {
-    // 숫자+한글 조합 (예: 202, 3인용 제외하고 모델명 같은 것)
-    if (/^[A-Za-z]+\d+$/.test(word)) return true;
-    if (/^\d+[A-Za-z]+$/.test(word)) return true;
+  // ── 초성 추출 (유사어 감지용) ──
+  const getChosung = (str) => {
+    const CHOSUNGS = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+    return [...str].map(ch => {
+      const code = ch.charCodeAt(0) - 0xAC00;
+      return (code >= 0 && code <= 11171) ? CHOSUNGS[Math.floor(code / 588)] : ch;
+    }).join('');
+  };
+
+  const isSimilar = (a, b) => {
+    const na = a.replace(/\s/g, '').toLowerCase();
+    const nb = b.replace(/\s/g, '').toLowerCase();
+    if (na === nb) return true;
+    if (na.includes(nb) || nb.includes(na)) return true;
+    if (getChosung(na) === getChosung(nb)) return true;
     return false;
   };
 
-  // ── 경쟁사 상품명에서 단어 추출 + JS 필터링 ──
+  // ── 경쟁사 단어 빈도 분석 (보완용) ──
   const freq = {};
   titles.forEach(title => {
-    const clean = title.replace(/<[^>]*>/g, '');
-    const words = clean.split(/\s+/).map(w => w.replace(/[^\uAC00-\uD7A3a-zA-Z0-9]/g, '')).filter(w => w.length >= 2);
-
-    words.forEach(word => {
-      // 1. 블랙리스트 제거
+    tokenize(title.replace(/<[^>]*>/g, '')).forEach(word => {
       if (BLACKLIST.has(word)) return;
-      // 2. 브랜드명 패턴 제거
       if (isBrand(word)) return;
-      // 3. 상품명/메인키워드 단어와 유사한 것 제거
       if (allTokens.some(t => isSimilar(word, t))) return;
-      // 4. 너무 짧거나 긴 단어 제거
-      if (word.length < 2 || word.length > 7) return;
-      // 5. 숫자만인 단어 제거
+      if (productHasUnit && hasUnitWord(word)) return;
       if (/^\d+$/.test(word)) return;
-
+      if (word.length < 2 || word.length > 7) return;
       freq[word] = (freq[word] || 0) + 1;
     });
   });
 
-  // 빈도 상위 후보군 (kwCount * 5배 = AI가 고를 풀)
-  const candidates = Object.entries(freq)
+  const topCompetitor = Object.entries(freq)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, kwCount * 5)
-    .map(([w]) => w);
+    .slice(0, 40)
+    .map(([w, c]) => `${w}(${c})`)
+    .join(', ');
 
-  if (candidates.length === 0) {
-    return res.status(200).json({ keywords: [], acq: [] });
-  }
-
-  // ── AI: 후보 중에서 선택만 (생성 X) ──
-  const kwPrompt = `당신은 네이버 쇼핑 SEO 전문가입니다.
+  // ── 프롬프트: AI가 먼저 생성 → 경쟁사로 보완 ──
+  const kwPrompt = `당신은 네이버 쇼핑 상품명 SEO 전문가입니다.
 
 [내 상품]
 - 상품명: "${productName}"
 - 메인키워드: "${mainKw}"
 - 카테고리: ${categoryStr}
 
-[후보 키워드 목록]
-${candidates.join(', ')}
+[경쟁사 고빈도 단어 - 참고만, 검증 후 사용]
+${topCompetitor}
 
-위 후보 목록에서만 골라서, 이 상품명에 추가하면 검색 노출에 도움되는 키워드 ${kwCount}개를 선택하세요.
+[작업]
+다음 두 단계로 키워드 ${kwCount}개를 뽑으세요.
 
-[선택 기준]
-- 이 상품과 직접 관련된 단어만
-- 소비자가 실제로 검색하는 단어 우선
-- 상품의 용도/특징/대상/재질 관련 단어
+STEP 1. 상품 이해 기반 생성
+이 상품이 정확히 무엇인지 파악하고, 소비자가 검색할 만한 키워드를 직접 생성하세요.
+(용도, 대상, 특징, 재질, 사이즈 등)
+
+STEP 2. 경쟁사 보완
+경쟁사 고빈도 단어 중 STEP 1 목록에 없고, 이 상품에 실제로 맞는 것만 추가하세요.
+맞지 않으면 경쟁사 단어는 무시하세요.
 
 [절대 금지]
-- 목록에 없는 단어 새로 만들기 금지
-- 상품명에 이미 있는 단어 선택 금지
-- 메인키워드("${mainKw}") 및 유사어 선택 금지
+- 상품명에 이미 있는 단어 및 유사어/동의어 금지
+  예) 돌쇼파 있으면 → 돌소파, 흙소파, 석재소파 전부 금지
+- 메인키워드("${mainKw}") 및 유사어 금지
+- 브랜드명, 모델번호 금지
+- 구매의도 없는 단어 금지 (추천, 후기, 인기 등)
+- 상품과 직접 관련 없는 단어 금지
 
 [출력] JSON만:
 {"keywords": ["단어1", "단어2", ...]}`;
@@ -153,13 +147,13 @@ ${candidates.join(', ')}
         body: JSON.stringify({
           model: 'claude-opus-4-5',
           max_tokens: maxTokens,
-          system: 'JSON만 출력. 설명 없음. 목록에 없는 단어 생성 금지.',
+          system: 'JSON만 출력. 설명 없음.',
           messages: [{ role: 'user', content: prompt }],
         }),
       }).then(r => r.json());
 
     const [kwData, acqData] = await Promise.all([
-      callClaude(kwPrompt, 300),
+      callClaude(kwPrompt, 500),
       callClaude(acqPrompt, 800),
     ]);
 
@@ -174,12 +168,20 @@ ${candidates.join(', ')}
     let keywords = parseKey(kwData, 'keywords');
     let acq      = parseKey(acqData, 'acq');
 
-    // JS 최종 검증: 후보 목록에 있는 것만 통과
-    const candidateSet = new Set(candidates);
-    keywords = keywords.filter(w => candidateSet.has(w)).slice(0, kwCount);
-
-    // ACQ 필터
+    // JS 최종 필터
     const mainNorm = mainKw.toLowerCase().replace(/\s/g, '');
+
+    keywords = keywords.filter(w => {
+      if (BLACKLIST.has(w)) return false;
+      if (isBrand(w)) return false;
+      if (allTokens.some(t => isSimilar(w, t))) return false;
+      if (productHasUnit && hasUnitWord(w)) return false;
+      if (/^\d+$/.test(w)) return false;
+      const wn = w.toLowerCase().replace(/\s/g, '');
+      if (mainNorm.length >= 2 && wn.includes(mainNorm)) return false;
+      return true;
+    });
+
     acq = acq.filter(w => {
       const wn = w.toLowerCase().replace(/\s/g, '');
       return !(mainNorm.length >= 2 && wn.includes(mainNorm));
